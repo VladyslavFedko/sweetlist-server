@@ -1,0 +1,133 @@
+@baseUrl = http://localhost:5000/api
+@origin = http://localhost:5000
+
+###
+# Olena owns the recipe, Maria is the recipient.
+
+# @name loginOwner
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "olena@example.com", "password": "password123" }
+
+###
+@ownerToken = {{loginOwner.response.body.$.data.token}}
+
+### 
+# @name loginFriend
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "maria@example.com", "password": "password123" }
+
+###
+@friendToken = {{loginFriend.response.body.$.data.token}}
+@friendId = {{loginFriend.response.body.$.data.user.id}}
+
+### Owner creates a recipe
+# @name createRecipe
+POST {{baseUrl}}/recipes
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "title": "Рецепт для шерингу",
+  "prepTimeMinutes": 45,
+  "servings": 6,
+  "tags": ["Десерти"],
+  "ingredients": [{ "name": "Цукор", "quantity": 120, "unit": "g", "category": "dry" }],
+  "steps": [{ "title": "Змішайте", "instruction": "Змішайте все." }]
+}
+
+###
+@recipeId = {{createRecipe.response.body.$.data.id}}
+
+### Friend cannot see it yet -> 404
+GET {{baseUrl}}/recipes/{{recipeId}}
+Authorization: Bearer {{friendToken}}
+
+### Share by email
+POST {{baseUrl}}/recipes/{{recipeId}}/shares
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "identifier": "maria@example.com" }
+
+### Share by @username (same share -> 200, not a duplicate)
+POST {{baseUrl}}/recipes/{{recipeId}}/shares
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "identifier": "@maria" }
+
+### Unknown user -> 404
+POST {{baseUrl}}/recipes/{{recipeId}}/shares
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "identifier": "nobody@example.com" }
+
+### Sharing with yourself -> 400
+POST {{baseUrl}}/recipes/{{recipeId}}/shares
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "identifier": "olena@example.com" }
+
+### Owner: who has access
+GET {{baseUrl}}/recipes/{{recipeId}}/shares
+Authorization: Bearer {{ownerToken}}
+
+### Friend: sees it under "Received", read-only
+GET {{baseUrl}}/recipes?scope=received
+Authorization: Bearer {{friendToken}}
+
+### Friend: open the recipe (access = "shared")
+GET {{baseUrl}}/recipes/{{recipeId}}
+Authorization: Bearer {{friendToken}}
+
+### Friend tries to edit -> 403 NOT_RECIPE_OWNER
+PATCH {{baseUrl}}/recipes/{{recipeId}}
+Authorization: Bearer {{friendToken}}
+Content-Type: application/json
+
+{ "title": "Hacked" }
+
+### Friend tries to delete -> 403
+DELETE {{baseUrl}}/recipes/{{recipeId}}
+Authorization: Bearer {{friendToken}}
+
+### Friend is not Premium -> 403 PREMIUM_REQUIRED
+GET {{baseUrl}}/recipes?scope=catalog
+Authorization: Bearer {{friendToken}}
+
+### ---------- Public link ----------
+# @name shareLink
+POST {{baseUrl}}/recipes/{{recipeId}}/share-link
+Authorization: Bearer {{ownerToken}}
+
+###
+@shareToken = {{shareLink.response.body.$.data.token}}
+
+### Anyone with the link can read it (no Authorization header)
+GET {{baseUrl}}/shared/{{shareToken}}
+
+### Revoke the link
+DELETE {{baseUrl}}/recipes/{{recipeId}}/share-link
+Authorization: Bearer {{ownerToken}}
+
+### Link no longer works -> 404
+GET {{baseUrl}}/shared/{{shareToken}}
+
+### ---------- Revoke access ----------
+# Owner removes Maria
+DELETE {{baseUrl}}/recipes/{{recipeId}}/shares/{{friendId}}
+Authorization: Bearer {{ownerToken}}
+
+### Maria "leaves" a share (run the share request above again first) 
+DELETE {{baseUrl}}/recipes/{{recipeId}}/shares/me
+Authorization: Bearer {{friendToken}}
+
+### Cleanup
+DELETE {{baseUrl}}/recipes/{{recipeId}}
+Authorization: Bearer {{ownerToken}}

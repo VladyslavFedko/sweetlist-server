@@ -1,0 +1,150 @@
+@baseUrl = http://localhost:4000/api
+@origin = http://localhost:4000
+
+###
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "olena@example.com", "password": "password123" }
+
+###
+@token = {{login.response.body.$.data.token}}
+
+### Two recipes that share ingredients (Борошно / Яйця are summed in the product view)
+# @name recipeA
+POST {{baseUrl}}/recipes
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Список A",
+  "prepTimeMinutes": 30,
+  "servings": 4,
+  "ingredients": [
+    { "name": "Борошно", "quantity": 200, "unit": "g", "category": "dry" },
+    { "name": "Яйця", "quantity": 2, "unit": "pcs", "category": "eggs" },
+    { "name": "Молоко", "quantity": 300, "unit": "ml", "category": "dairy" }
+  ],
+  "steps": [{ "title": "Змішайте", "instruction": "Змішайте інгредієнти." }]
+}
+
+###
+# @name recipeB
+POST {{baseUrl}}/recipes
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Список B",
+  "prepTimeMinutes": 30,
+  "servings": 2,
+  "ingredients": [
+    { "name": "борошно", "quantity": 100, "unit": "g", "category": "dry" },
+    { "name": "Яйця", "quantity": 1, "unit": "pcs", "category": "eggs" }
+  ],
+  "steps": [{ "title": "Випікайте", "instruction": "Випікайте." }]
+}
+
+###
+@recipeA = {{recipeA.response.body.$.data.id}}
+@recipeB = {{recipeB.response.body.$.data.id}}
+
+### Start from an empty list
+DELETE {{baseUrl}}/shopping-list
+Authorization: Bearer {{token}}
+
+### Add recipe A, cooking 8 servings instead of 4 (quantities x2)
+POST {{baseUrl}}/shopping-list/recipes
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "recipeId": "{{recipeA}}", "servings": 8 }
+
+### Add recipe B with its default servings
+POST {{baseUrl}}/shopping-list/recipes
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "recipeId": "{{recipeB}}" }
+
+### Unknown recipe -> 404
+POST {{baseUrl}}/shopping-list/recipes
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "recipeId": "00000000-0000-4000-8000-000000000000" }
+
+### "За рецептами"
+GET {{baseUrl}}/shopping-list?view=recipes
+Authorization: Bearer {{token}}
+
+### "За продуктами": Борошно = 400 + 100 = 500 g, Яйця = 4 + 1 = 5 pcs, grouped by category
+GET {{baseUrl}}/shopping-list?view=products
+Authorization: Bearer {{token}}
+
+### Change servings of a recipe in the list
+PATCH {{baseUrl}}/shopping-list/recipes/{{recipeB}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "servings": 4 }
+
+### Mark a product as bought (shared by all recipes that use it)
+PUT {{baseUrl}}/shopping-list/items
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "name": "Борошно", "unit": "g", "purchased": true }
+
+### Manual quantity (pencil icon)
+PUT {{baseUrl}}/shopping-list/items
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "name": "Молоко", "unit": "ml", "quantityOverride": 1000 }
+
+### Reset the manual quantity back to the computed one
+PUT {{baseUrl}}/shopping-list/items
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "name": "Молоко", "unit": "ml", "quantityOverride": null }
+
+### Product that is not in the list -> 404
+PUT {{baseUrl}}/shopping-list/items
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "name": "Трюфель", "unit": "g", "purchased": true }
+
+### Neither field -> 400
+PUT {{baseUrl}}/shopping-list/items
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "name": "Борошно", "unit": "g" }
+
+### Confirm the list ("Список підтверджено!")
+POST {{baseUrl}}/shopping-list/confirm
+Authorization: Bearer {{token}}
+
+### Remove one recipe (any change re-opens a confirmed list as draft)
+DELETE {{baseUrl}}/shopping-list/recipes/{{recipeB}}
+Authorization: Bearer {{token}}
+
+### Clear everything
+DELETE {{baseUrl}}/shopping-list
+Authorization: Bearer {{token}}
+
+### Confirming an empty list -> 400
+POST {{baseUrl}}/shopping-list/confirm
+Authorization: Bearer {{token}}
+
+### Cleanup
+DELETE {{baseUrl}}/recipes/{{recipeA}}
+Authorization: Bearer {{token}}
+
+###
+DELETE {{baseUrl}}/recipes/{{recipeB}}
+Authorization: Bearer {{token}}

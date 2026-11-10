@@ -1,0 +1,166 @@
+@baseUrl = http://localhost:5000/api
+@origin = http://localhost:5000
+
+###
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "olena@example.com", "password": "password123" }
+
+###
+@token = {{login.response.body.$.data.token}}
+
+### ---------- Create ----------
+# @name createRecipe
+POST {{baseUrl}}/recipes
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Малиновий тарт",
+  "description": "Хрусткий пісочний тарт із кремом і свіжою малиною.",
+  "prepTimeMinutes": 80,
+  "restTimeMinutes": 120,
+  "servings": 8,
+  "servingsUnit": "portions",
+  "storageMode": "cloud",
+  "tags": ["Тарти", "Десерти"],
+  "ingredients": [
+    { "name": "Борошно", "quantity": 250, "unit": "g", "category": "dry" },
+    { "name": "Вершкове масло", "quantity": 150, "unit": "g", "category": "dairy" },
+    { "name": "Яйця", "quantity": 3, "unit": "pcs", "category": "eggs" },
+    { "name": "Малина", "quantity": 300, "unit": "g", "category": "other" }
+  ],
+  "steps": [
+    { "title": "Замісіть тісто", "instruction": "Перетріть борошно з маслом, додайте жовтки й охолодіть 30 хв." },
+    { "title": "Випечіть основу", "instruction": "Викладіть у форму й випікайте при 180 °C 20 хв." },
+    { "title": "Збирання", "instruction": "Наповніть кремом і викладіть малину." }
+  ]
+}
+
+###
+@recipeId = {{createRecipe.response.body.$.data.id}}
+
+### Empty ingredients / steps, bad numbers -> 400 with details per field
+POST {{baseUrl}}/recipes
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "",
+  "prepTimeMinutes": -5,
+  "servings": 0,
+  "ingredients": [],
+  "steps": []
+}
+
+### ---------- Read ----------
+GET {{baseUrl}}/recipes/{{recipeId}}
+Authorization: Bearer {{token}}
+
+### My recipes (default scope), newest first
+GET {{baseUrl}}/recipes?scope=mine&sort=newest&page=1&limit=12
+Authorization: Bearer {{token}}
+
+### Search by title
+GET {{baseUrl}}/recipes?q=наполеон
+Authorization: Bearer {{token}}
+
+### Filter by tag, sorted by cooking time
+GET {{baseUrl}}/recipes?tag=торти&sort=time
+Authorization: Bearer {{token}}
+
+### Received from other confectioners (empty for Olena unless Maria shared something)
+GET {{baseUrl}}/recipes?scope=received
+Authorization: Bearer {{token}}
+
+### Published catalog (Premium only)
+GET {{baseUrl}}/recipes?scope=catalog
+Authorization: Bearer {{token}}
+
+### Invalid query -> 400
+GET {{baseUrl}}/recipes?limit=500&sort=random
+Authorization: Bearer {{token}}
+
+### Not a UUID -> 400
+GET {{baseUrl}}/recipes/123
+Authorization: Bearer {{token}}
+
+### Unknown UUID -> 404
+GET {{baseUrl}}/recipes/00000000-0000-4000-8000-000000000000
+Authorization: Bearer {{token}}
+
+### ---------- Update ----------
+# Scalar fields only
+PATCH {{baseUrl}}/recipes/{{recipeId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "servings": 10, "description": "Оновлений опис." }
+
+### Replace tags, ingredients and steps in one go
+PATCH {{baseUrl}}/recipes/{{recipeId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "tags": ["Тарти", "Літо"],
+  "ingredients": [
+    { "name": "Борошно", "quantity": 300, "unit": "g", "category": "dry" },
+    { "name": "Малина", "quantity": 400, "unit": "g", "category": "other" }
+  ],
+  "steps": [
+    { "title": "Все разом", "instruction": "Змішайте, випечіть, прикрасьте." }
+  ]
+}
+
+### Empty body -> 400
+PATCH {{baseUrl}}/recipes/{{recipeId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{}
+
+### Publish to the catalog (Premium user -> 200)
+PATCH {{baseUrl}}/recipes/{{recipeId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "isPublished": true }
+
+### ---------- Photo ----------
+POST {{baseUrl}}/recipes/{{recipeId}}/photo
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=SweetBoundary
+
+--SweetBoundary
+Content-Disposition: form-data; name="photo"; filename="test.png"
+Content-Type: image/png
+
+< ./fixtures/test.png
+--SweetBoundary--
+
+### Not an image -> 400 INVALID_FILE_TYPE
+POST {{baseUrl}}/recipes/{{recipeId}}/photo
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=SweetBoundary
+
+--SweetBoundary
+Content-Disposition: form-data; name="photo"; filename="notes.txt"
+Content-Type: text/plain
+
+hello
+--SweetBoundary--
+
+### Remove photo
+DELETE {{baseUrl}}/recipes/{{recipeId}}/photo
+Authorization: Bearer {{token}}
+
+### ---------- Delete ----------
+DELETE {{baseUrl}}/recipes/{{recipeId}}
+Authorization: Bearer {{token}}
+
+### Gone -> 404
+GET {{baseUrl}}/recipes/{{recipeId}}
+Authorization: Bearer {{token}}

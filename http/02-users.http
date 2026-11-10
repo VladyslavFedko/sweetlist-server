@@ -1,0 +1,107 @@
+@baseUrl = http://localhost:5000/api
+@origin = http://localhost:5000
+
+###
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "olena@example.com", "password": "password123" }
+
+###
+@token = {{login.response.body.$.data.token}}
+
+### Get profile
+GET {{baseUrl}}/users/me
+Authorization: Bearer {{token}}
+
+### Update profile (profile form, language, theme, cloud sync)
+PATCH {{baseUrl}}/users/me
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Олена Коваль",
+  "bio": "Готую з любов’ю, ділюся солодким.",
+  "language": "uk",
+  "theme": "dark",
+  "cloudSyncEnabled": true
+}
+
+### Bio longer than 200 chars and bad enum -> 400
+PATCH {{baseUrl}}/users/me
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "theme": "neon", "bio": "Дуже довге біо. Дуже довге біо. Дуже довге біо. Дуже довге біо. Дуже довге біо. Дуже довге біо. Дуже довге біо. Дуже довге біо. Дуже довге біо. Дуже довге біо. Дуже довге біо. Дуже довге біо. Дуже довге біо. Дуже довге біо. Дуже довге біо. Дуже довге біо. " }
+
+### Email already taken by another user -> 409
+PATCH {{baseUrl}}/users/me
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "email": "maria@example.com" }
+
+### Upload avatar (JPG/PNG, max 5 MB)
+POST {{baseUrl}}/users/me/avatar
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=SweetBoundary
+
+--SweetBoundary
+Content-Disposition: form-data; name="avatar"; filename="test.png"
+Content-Type: image/png
+
+< ./fixtures/test.png
+--SweetBoundary--
+
+### Remove avatar
+DELETE {{baseUrl}}/users/me/avatar
+Authorization: Bearer {{token}}
+
+### Activate Premium (mock payment, +30 days)
+POST {{baseUrl}}/users/me/premium
+Authorization: Bearer {{token}}
+
+### Change password (then change it back, or re-run the seed)
+PUT {{baseUrl}}/users/me/password
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "currentPassword": "password123",
+  "newPassword": "password123",
+  "confirmPassword": "password123"
+}
+
+### Wrong current password -> 400
+PUT {{baseUrl}}/users/me/password
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "currentPassword": "nope-nope-nope",
+  "newPassword": "password123",
+  "confirmPassword": "password123"
+}
+
+### Delete a throw-away account (registers one, then deletes it)
+# @name tmpUser
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Delete Me",
+  "email": "delete.{{$timestamp}}@example.com",
+  "password": "password123",
+  "confirmPassword": "password123"
+}
+
+###
+@tmpToken = {{tmpUser.response.body.$.data.token}}
+
+### -> 204
+DELETE {{baseUrl}}/users/me
+Authorization: Bearer {{tmpToken}}
+Content-Type: application/json
+
+{ "password": "password123" }

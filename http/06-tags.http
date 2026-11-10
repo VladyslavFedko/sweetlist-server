@@ -1,0 +1,49 @@
+@baseUrl = http://localhost:5000/api
+@origin = http://localhost:5000
+
+###
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "olena@example.com", "password": "password123" }
+
+###
+@token = {{login.response.body.$.data.token}}
+
+### List / autocomplete
+GET {{baseUrl}}/tags?q=т&limit=20
+Authorization: Bearer {{token}}
+
+### Create (case-insensitive: "ТЕСТ" and "тест" are one tag)
+# @name createTag
+POST {{baseUrl}}/tags
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "name": "Тест-тег" }
+
+###
+@tagId = {{createTag.response.body.$.data.id}}
+
+### Get one
+GET {{baseUrl}}/tags/{{tagId}}
+Authorization: Bearer {{token}}
+
+### Rename
+PATCH {{baseUrl}}/tags/{{tagId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "name": "Перейменований-тег" }
+
+### Name longer than 30 chars -> 400
+POST {{baseUrl}}/tags
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "name": "дуже-дуже-дуже-довга-назва-тега-яка-не-влізе" }
+
+### Delete an unused tag -> 204 (a tag attached to recipes -> 409 TAG_IN_USE)
+DELETE {{baseUrl}}/tags/{{tagId}}
+Authorization: Bearer {{token}}

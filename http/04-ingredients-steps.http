@@ -1,0 +1,128 @@
+@baseUrl = http://localhost:5000/api
+@origin = http://localhost:5000
+
+###
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "olena@example.com", "password": "password123" }
+
+###
+@token = {{login.response.body.$.data.token}}
+
+### Set up a recipe to work with
+# @name createRecipe
+POST {{baseUrl}}/recipes
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Тест інгредієнтів",
+  "prepTimeMinutes": 30,
+  "servings": 4,
+  "ingredients": [{ "name": "Цукор", "quantity": 100, "unit": "g", "category": "dry" }],
+  "steps": [{ "title": "Крок 1", "instruction": "Перший крок." }]
+}
+
+###
+@recipeId = {{createRecipe.response.body.$.data.id}}
+@firstIngredientId = {{createRecipe.response.body.$.data.ingredients[0].id}}
+@firstStepId = {{createRecipe.response.body.$.data.steps[0].id}}
+
+### =================== INGREDIENTS ===================
+
+### List
+GET {{baseUrl}}/recipes/{{recipeId}}/ingredients
+Authorization: Bearer {{token}}
+
+### Create
+# @name createIngredient
+POST {{baseUrl}}/recipes/{{recipeId}}/ingredients
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "name": "Вершки 33%", "quantity": 250, "unit": "ml", "category": "dairy" }
+
+###
+@ingredientId = {{createIngredient.response.body.$.data.id}}
+
+### Get one
+GET {{baseUrl}}/recipes/{{recipeId}}/ingredients/{{ingredientId}}
+Authorization: Bearer {{token}}
+
+### Update
+PATCH {{baseUrl}}/recipes/{{recipeId}}/ingredients/{{ingredientId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "quantity": 500 }
+
+### Invalid unit / category -> 400
+POST {{baseUrl}}/recipes/{{recipeId}}/ingredients
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "name": "Сіль", "quantity": 2, "unit": "spoonful", "category": "spices" }
+
+### Delete
+DELETE {{baseUrl}}/recipes/{{recipeId}}/ingredients/{{ingredientId}}
+Authorization: Bearer {{token}}
+
+### Deleting the last remaining ingredient -> 409 LAST_INGREDIENT
+DELETE {{baseUrl}}/recipes/{{recipeId}}/ingredients/{{firstIngredientId}}
+Authorization: Bearer {{token}}
+
+### =================== STEPS ===================
+
+### List
+GET {{baseUrl}}/recipes/{{recipeId}}/steps
+Authorization: Bearer {{token}}
+
+### Create
+# @name createStep
+POST {{baseUrl}}/recipes/{{recipeId}}/steps
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "title": "Крок 2", "instruction": "Другий крок." }
+
+###
+@stepId = {{createStep.response.body.$.data.id}}
+
+### Get one
+GET {{baseUrl}}/recipes/{{recipeId}}/steps/{{stepId}}
+Authorization: Bearer {{token}}
+
+### Update
+PATCH {{baseUrl}}/recipes/{{recipeId}}/steps/{{stepId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "instruction": "Оновлений другий крок." }
+
+### Reorder (drag-and-drop): every step id exactly once, in the new order
+PUT {{baseUrl}}/recipes/{{recipeId}}/steps/order
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "ids": ["{{stepId}}", "{{firstStepId}}"] }
+
+### Reorder with a missing id -> 400
+PUT {{baseUrl}}/recipes/{{recipeId}}/steps/order
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "ids": ["{{stepId}}"] }
+
+### Delete (positions are renumbered)
+DELETE {{baseUrl}}/recipes/{{recipeId}}/steps/{{stepId}}
+Authorization: Bearer {{token}}
+
+### Deleting the last remaining step -> 409 LAST_STEP
+DELETE {{baseUrl}}/recipes/{{recipeId}}/steps/{{firstStepId}}
+Authorization: Bearer {{token}}
+
+### Cleanup
+DELETE {{baseUrl}}/recipes/{{recipeId}}
+Authorization: Bearer {{token}}
