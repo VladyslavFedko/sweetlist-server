@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { LANGUAGES, THEMES } from '../models/user';
 
 const email = z.string().trim().toLowerCase().email().max(255);
-const password = z.string().min(8, 'Password must be at least 8 characters').max(72);
+const password = z.string().min(4, 'Password must be at least 8 characters').max(72);
 const username = z
   .string()
   .trim()

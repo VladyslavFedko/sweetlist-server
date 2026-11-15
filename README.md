@@ -12,7 +12,7 @@ docker compose up -d          # PostgreSQL on :5432 (or use your own and edit DA
 npm install
 npm run db:sync               # create tables from the models
 npm run db:seed               # optional demo data from the design
-npm run dev                   # http://localhost:4000
+npm run dev                   # http://localhost:5000
 ```
 
 Demo accounts after seeding (password `password123`): `olena@example.com` (Premium), `maria@example.com`.
